@@ -23,7 +23,8 @@ use crate::core::events::OutputEvent;
 
 use bevy_ecs::prelude::*;
 
-pub type CommandHandler = fn(Entity, &mut World, /* full input */ &str, /* args */ &[&str]);
+pub type CommandHandler =
+    fn(Entity, &mut World, /* full input */ &str, /* args */ &[&str]);
 
 struct CommandMetadata {
     name: &'static str,
