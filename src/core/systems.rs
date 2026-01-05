@@ -15,8 +15,8 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::core::{
-    components::{Name, OutputTx, Player},
-    events::{BroadcastEvent, OutputEvent},
+    components::{Location, Name, OutputTx, Player, Zone},
+    events::{BroadcastEvent, BroadcastRoomEvent, BroadcastZoneEvent, OutputEvent},
 };
 
 use bevy_ecs::prelude::*;
@@ -33,6 +33,47 @@ pub fn flush_broadcasts(
             }
             if maybe_name.is_some() {
                 let _ = tx.0.send(format!("{}\r\n> ", event.text));
+            }
+        }
+    }
+}
+
+/// Broadcasts messages to all players inside the same room except the sender
+pub fn flush_broadcasts_room(
+    players: Query<(Entity, &Location, &OutputTx, Option<&Name>), With<Player>>,
+    mut events: MessageReader<BroadcastRoomEvent>,
+) {
+    for event in events.read() {
+        for (ent, loc, tx, maybe_name) in players.iter() {
+            if ent == event.from {
+                continue;
+            }
+            if loc.0 == event.room {
+                if maybe_name.is_some() {
+                    let _ = tx.0.send(format!("{}\r\n> ", event.text));
+                }
+            }
+        }
+    }
+}
+
+/// Broadcasts messages to all players inside a zone except the sender
+pub fn flush_broadcasts_zone(
+    players: Query<(Entity, &Location, &OutputTx, Option<&Name>), With<Player>>,
+    mut events: MessageReader<BroadcastZoneEvent>,
+    world: &World,
+) {
+    for event in events.read() {
+        for (ent, loc, tx, maybe_name) in players.iter() {
+            if ent == event.from {
+                continue;
+            }
+            if let Some(zone) = world.get::<Zone>(loc.0) {
+                if zone.0 == event.zone {
+                    if maybe_name.is_some() {
+                        let _ = tx.0.send(format!("{}\r\n> ", event.text));
+                    }
+                }
             }
         }
     }

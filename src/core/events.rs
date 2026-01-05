@@ -23,18 +23,32 @@ pub struct BroadcastEvent {
 }
 
 #[derive(Message)]
+pub struct BroadcastRoomEvent {
+    pub from: Entity,
+    pub room: Entity,
+    pub text: String,
+}
+
+#[derive(Message)]
+pub struct BroadcastZoneEvent {
+    pub from: Entity,
+    pub zone: String,
+    pub text: String,
+}
+
+#[derive(Message)]
 pub struct CommandEvent {
     pub player: Entity,
     pub input: String,
 }
 
 #[derive(Message)]
-pub struct OutputEvent {
+pub struct DisconnectEvent {
     pub player: Entity,
-    pub text: String,
 }
 
 #[derive(Message)]
-pub struct DisconnectEvent {
+pub struct OutputEvent {
     pub player: Entity,
+    pub text: String,
 }

@@ -1,0 +1,20 @@
+id = "default"
+name = "Default Zone"
+
+[[rooms]]
+id = "start"
+name = "Entrance Hall"
+description = "A small stone entrance hall."
+exits = { north = "corridor" }
+
+[[rooms]]
+id = "corridor"
+name = "Corridor"
+description = "A narrow corridor with flickering torches."
+exits = { south = "start", north = "chamber" }
+
+[[rooms]]
+id = "chamber"
+name = "Chamber"
+description = "A dim chamber with an eerie silence."
+exits = { south = "corridor" }

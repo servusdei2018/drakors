@@ -19,6 +19,7 @@ pub mod components;
 pub mod events;
 pub mod plugins;
 pub mod systems;
+pub mod world;
 
 pub use commands::CommandMap;
 pub use plugins::CorePlugin;

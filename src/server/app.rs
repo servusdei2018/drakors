@@ -16,15 +16,16 @@
 
 use crate::core::CommandMap;
 use crate::core::CorePlugin;
-use crate::core::components::{Name, OutputTx, Player, PlayerState};
+use crate::core::components::{Location, Name, OutputTx, Player, PlayerState};
 use crate::core::events::{BroadcastEvent, CommandEvent, DisconnectEvent, OutputEvent};
+use crate::core::world::{RoomRegistry, ZoneRegistry, load_zones_from_dir};
 use crate::network::connection::start_networking;
 
 use bevy_app::App;
 use bevy_ecs::prelude::*;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use tracing::info;
+use tracing::{error, info};
 
 #[derive(Resource)]
 pub struct CommandQueue(pub mpsc::UnboundedReceiver<CommandEvent>);
@@ -51,8 +52,16 @@ pub async fn run_server(addr: &str) -> anyhow::Result<()> {
     let mut app = App::new();
     app.add_plugins(CorePlugin)
         .insert_resource(CommandQueue(command_rx))
-        .insert_resource(DisconnectQueue(disconnect_rx));
+        .insert_resource(DisconnectQueue(disconnect_rx))
+        .insert_resource(RoomRegistry::default())
+        .insert_resource(ZoneRegistry::default());
 
+    {
+        let world = app.world_mut();
+        if let Err(e) = load_zones_from_dir(world, "lib/zones") {
+            error!("Failed to load zones: {:?}", e);
+        }
+    }
     info!("Drakors starting on {}", addr);
 
     let tick_duration = std::time::Duration::from_millis(50); // 20 ticks per second (50ms per tick)
@@ -133,10 +142,14 @@ pub async fn run_server(addr: &str) -> anyhow::Result<()> {
 
                 // Handle incoming player registration
                 while let Ok((tx, resp)) = register_rx.try_recv() {
-                    let entity = app
-                        .world_mut()
+                    let world = app.world_mut();
+                    let entity = world
                         .spawn((Player, OutputTx(tx.clone()), PlayerState::ChoosingName))
                         .id();
+
+                    if let Some(start) = world.resource::<RoomRegistry>().get("default:start") {
+                        let _ = world.entity_mut(entity).insert(Location(start));
+                    }
 
                     let _ = resp.send(entity.to_bits());
                 }

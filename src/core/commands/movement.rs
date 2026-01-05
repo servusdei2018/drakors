@@ -14,12 +14,43 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use crate::core::components::{Location, Room, Zone};
 use crate::core::events::OutputEvent;
+use crate::core::world::ZoneRegistry;
 
 use bevy_ecs::prelude::*;
 
 pub fn cmd_look(player: Entity, world: &mut World, _full: &str, _args: &[&str]) {
-    let text = "You look around and see... the vast potential of a growing MUD.";
+    if let Some(loc) = world.get::<Location>(player) {
+        if let Some(room) = world.get::<Room>(loc.0) {
+            let text = format!("{}\n\n{}", room.name, room.description);
+            world.write_message(OutputEvent { player, text });
+            return;
+        }
+    }
+
+    let text = "You are nowhere. (no location set)";
+    world.write_message(OutputEvent {
+        player,
+        text: text.to_string(),
+    });
+}
+
+pub fn cmd_where(player: Entity, world: &mut World, _full: &str, _args: &[&str]) {
+    if let Some(loc) = world.get::<Location>(player) {
+        if let Some(zone_comp) = world.get::<Zone>(loc.0) {
+            let zone_id = &zone_comp.0;
+            if let Some(zin) = world.get_resource::<ZoneRegistry>() {
+                if let Some(zone_name) = zin.id_to_name.get(zone_id) {
+                    let text = format!("You are in: {}", zone_name);
+                    world.write_message(OutputEvent { player, text });
+                    return;
+                }
+            }
+        }
+    }
+
+    let text = "You are nowhere. (zone unknown)";
     world.write_message(OutputEvent {
         player,
         text: text.to_string(),

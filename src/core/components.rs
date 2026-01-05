@@ -14,10 +14,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::HashMap;
 use std::fmt;
 
 use bevy_ecs::prelude::*;
 use tokio::sync::mpsc;
+
+// === Network Components ===
+
+#[derive(Component)]
+pub struct OutputTx(pub mpsc::UnboundedSender<String>);
+
+// === Player Components ===
 
 #[derive(Component)]
 pub struct Player;
@@ -31,11 +39,23 @@ impl fmt::Display for Name {
     }
 }
 
-#[derive(Component)]
-pub struct OutputTx(pub mpsc::UnboundedSender<String>);
-
 #[derive(Component, PartialEq, Eq, Debug)]
 pub enum PlayerState {
     ChoosingName,
     Active,
 }
+
+// === World Components ===
+
+#[derive(Component)]
+pub struct Room {
+    pub name: String,
+    pub description: String,
+    pub exits: HashMap<String, Entity>,
+}
+
+#[derive(Component)]
+pub struct Location(pub Entity);
+
+#[derive(Component)]
+pub struct Zone(pub String);

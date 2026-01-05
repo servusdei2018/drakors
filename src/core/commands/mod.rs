@@ -58,6 +58,18 @@ const COMMAND_LIST: &[CommandMetadata] = &[
         description: "Speak aloud to others in the room",
         aliases: &[],
     },
+    CommandMetadata {
+        name: "shout",
+        handler: Some(social::cmd_shout),
+        description: "Shout to everyone in your zone",
+        aliases: &[],
+    },
+    CommandMetadata {
+        name: "where",
+        handler: Some(movement::cmd_where),
+        description: "Show which zone you are in",
+        aliases: &[],
+    },
 ];
 
 #[derive(Resource)]

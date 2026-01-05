@@ -15,8 +15,13 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::core::CommandMap;
-use crate::core::events::{BroadcastEvent, CommandEvent, DisconnectEvent, OutputEvent};
-use crate::core::systems::{flush_broadcasts, flush_output};
+use crate::core::events::BroadcastRoomEvent;
+use crate::core::events::{
+    BroadcastEvent, BroadcastZoneEvent, CommandEvent, DisconnectEvent, OutputEvent,
+};
+use crate::core::systems::{
+    flush_broadcasts, flush_broadcasts_room, flush_broadcasts_zone, flush_output,
+};
 
 use bevy_app::prelude::*;
 use bevy_ecs::prelude::*;
@@ -25,11 +30,22 @@ pub struct CorePlugin;
 
 impl Plugin for CorePlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<CommandEvent>()
-            .add_message::<OutputEvent>()
+        app.add_message::<BroadcastEvent>()
+            .add_message::<BroadcastRoomEvent>()
+            .add_message::<BroadcastZoneEvent>()
+            .add_message::<CommandEvent>()
             .add_message::<DisconnectEvent>()
-            .add_message::<BroadcastEvent>()
+            .add_message::<OutputEvent>()
             .insert_resource(CommandMap::new())
-            .add_systems(Update, (flush_broadcasts, flush_output).chain());
+            .add_systems(
+                Update,
+                (
+                    flush_broadcasts,
+                    flush_broadcasts_room,
+                    flush_broadcasts_zone,
+                    flush_output,
+                )
+                    .chain(),
+            );
     }
 }
