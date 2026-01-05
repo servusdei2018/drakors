@@ -17,7 +17,9 @@
 use crate::core::CommandMap;
 use crate::core::CorePlugin;
 use crate::core::components::{Location, Name, OutputTx, Player, PlayerState};
-use crate::core::events::{BroadcastEvent, CommandEvent, DisconnectEvent, OutputEvent};
+use crate::core::events::{
+    BroadcastEvent, BroadcastRoomEvent, CommandEvent, DisconnectEvent, OutputEvent,
+};
 use crate::core::world::{RoomRegistry, ZoneRegistry, load_zones_from_dir};
 use crate::network::connection::start_networking;
 
@@ -42,12 +44,14 @@ pub async fn run_server(addr: &str) -> anyhow::Result<()> {
         oneshot::Sender<u64>,
     )>();
 
-    let mut network_handle = tokio::spawn(start_networking(
-        addr.to_string(),
-        command_tx,
-        disconnect_tx,
-        register_tx.clone(),
-    ));
+    let net_addr = addr.to_string();
+    let mut network_handle = tokio::spawn(async move {
+        if let Err(e) =
+            start_networking(net_addr, command_tx, disconnect_tx, register_tx.clone()).await
+        {
+            tracing::error!("networking failed: {:?}", e);
+        }
+    });
 
     let mut app = App::new();
     app.add_plugins(CorePlugin)
@@ -71,7 +75,10 @@ pub async fn run_server(addr: &str) -> anyhow::Result<()> {
         tokio::select! {
             _ = tick_timer.tick() => {
                 // Handle commands
-                while let Ok(event) = app.world_mut().resource_mut::<CommandQueue>().0.try_recv() {
+                while let Ok(event) = {
+                    let mut q = app.world_mut().resource_mut::<CommandQueue>();
+                    q.0.try_recv()
+                } {
                     let input = event.input.trim().to_string();
 
                     if let Some(state) = app.world().get::<PlayerState>(event.player) {
@@ -93,10 +100,23 @@ pub async fn run_server(addr: &str) -> anyhow::Result<()> {
                             } else {
                                 app.world_mut().entity_mut(event.player).insert(Name(input.clone()));
                                 app.world_mut().entity_mut(event.player).insert(PlayerState::Active);
+
                                 app.world_mut().write_message(BroadcastEvent {
                                     from: event.player,
                                     text: format!("{} has joined the game.", input.clone()),
                                 });
+
+                                let maybe_room = {
+                                    app.world().get::<Location>(event.player).map(|l| l.0)
+                                };
+                                if let Some(room) = maybe_room {
+                                    app.world_mut().write_message(BroadcastRoomEvent {
+                                        from: event.player,
+                                        room,
+                                        text: format!("{} appears in a bright flash of light.", input.clone()),
+                                    });
+                                }
+
                                 app.world_mut().write_message(OutputEvent {
                                     player: event.player,
                                     text: format!("Welcome, {}!", input.clone()),

@@ -109,7 +109,9 @@ impl CommandMap {
 
         for cmd in COMMAND_LIST {
             for &alias in cmd.aliases {
-                handlers.insert(alias.to_string(), cmd.handler.unwrap());
+                if let Some(h) = cmd.handler {
+                    handlers.insert(alias.to_string(), h);
+                }
             }
 
             let aliases_str = if !cmd.aliases.is_empty() {
@@ -122,10 +124,9 @@ impl CommandMap {
                 cmd.name, aliases_str, cmd.description
             ));
 
-            if cmd.handler.is_none() {
-                continue;
+            if let Some(h) = cmd.handler {
+                handlers.insert(cmd.name.to_string(), h);
             }
-            handlers.insert(cmd.name.to_string(), cmd.handler.unwrap());
         }
 
         help_lines.sort();

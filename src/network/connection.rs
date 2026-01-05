@@ -21,30 +21,35 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use tracing::{error, info};
+use tracing::info;
 
 pub async fn start_networking(
     addr: String,
     command_tx: mpsc::UnboundedSender<CommandEvent>,
     disconnect_tx: mpsc::UnboundedSender<DisconnectEvent>,
     register_tx: mpsc::UnboundedSender<(mpsc::UnboundedSender<String>, oneshot::Sender<u64>)>,
-) {
-    let listener = TcpListener::bind(&addr).await.unwrap();
+) -> anyhow::Result<()> {
+    let listener = TcpListener::bind(&addr).await?;
 
     loop {
-        let (stream, peer_addr) = listener.accept().await.unwrap();
+        let (stream, peer_addr) = listener.accept().await?;
         info!("New connection from {}", peer_addr);
 
         let command_tx = command_tx.clone();
         let disconnect_tx = disconnect_tx.clone();
         let register_tx = register_tx.clone();
         tokio::spawn(async move {
-            match handle_connection(stream, command_tx, disconnect_tx, register_tx).await {
-                Ok(_) => info!("Connection closed: {}", peer_addr),
-                Err(e) => error!("Connection error ({}): {:?}", peer_addr, e),
+            if handle_connection(stream, command_tx, disconnect_tx, register_tx)
+                .await
+                .is_err()
+            {
+                info!("Connection closed: {}", peer_addr);
             }
         });
     }
+
+    #[allow(unreachable_code)]
+    Ok(())
 }
 
 async fn handle_connection(
