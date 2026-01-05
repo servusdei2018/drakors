@@ -42,7 +42,23 @@ impl fmt::Display for Name {
 #[derive(Clone, Component, Debug, Eq, PartialEq)]
 pub enum PlayerState {
     ChoosingName,
+    ChoosingPassword,
+    ChoosingRace,
     Active,
+}
+
+#[derive(Component, Debug, Clone)]
+pub enum Race {
+    Alien,
+    Human,
+    Predator,
+    SyntheticHuman,
+}
+
+#[derive(Component, Debug, Default, Clone)]
+pub struct RegistrationData {
+    pub chosen_name: Option<String>,
+    pub password_hash: Option<String>,
 }
 
 // === World Components ===

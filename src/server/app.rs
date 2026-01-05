@@ -17,7 +17,9 @@
 use crate::core::CommandMap;
 use crate::core::CorePlugin;
 use crate::core::commands::CommandScope;
-use crate::core::components::{Location, Name, OutputTx, Player, PlayerState};
+use crate::core::components::{
+    Location, Name, OutputTx, Player, PlayerState, Race, RegistrationData,
+};
 use crate::core::events::{
     BroadcastEvent, BroadcastRoomEvent, CommandEvent, DisconnectEvent, OutputEvent,
 };
@@ -36,6 +38,18 @@ pub struct CommandQueue(pub mpsc::UnboundedReceiver<CommandEvent>);
 #[derive(Resource)]
 pub struct DisconnectQueue(pub mpsc::UnboundedReceiver<DisconnectEvent>);
 
+const RACE_PROMPT : &str = "Choose your race:
+
+[A]lien (Xenomorph) — A perfect organism born of acid and nightmare, stealthy and relentless. Strike from the darkness with lethal claws, corrosive blood, and an insatiable drive to hunt and infest.
+
+[H]uman — Versatile survivors of a fragile world, masters of ingenuity and adaptation. Rely on cunning tools, unbreakable will, and the raw ambition that conquered the void.
+
+[P]redator (Yautja) — Honorable warriors from the stars, clad in cloaks and armed with plasma casters. Live for the thrill of the hunt, bound by a sacred code of trophies, strength, and glory.
+
+[S]ynthetic Human (Android) — Engineered perfection without the weakness of flesh. Immune to fear or fatigue, gifted with superior intellect, strength, and loyalty programmed... or perhaps self-forged.
+
+Your choice [A/H/P/S]: ";
+
 pub async fn run_server(addr: &str) -> anyhow::Result<()> {
     let (command_tx, command_rx) = mpsc::unbounded_channel::<CommandEvent>();
     let (disconnect_tx, disconnect_rx) = mpsc::unbounded_channel::<DisconnectEvent>();
@@ -50,7 +64,7 @@ pub async fn run_server(addr: &str) -> anyhow::Result<()> {
         if let Err(e) =
             start_networking(net_addr, command_tx, disconnect_tx, register_tx.clone()).await
         {
-            tracing::error!("networking failed: {:?}", e);
+            error!("networking failed: {:?}", e);
         }
     });
 
@@ -83,47 +97,96 @@ pub async fn run_server(addr: &str) -> anyhow::Result<()> {
                     let input = event.input.trim().to_string();
 
                     if let Some(state) = app.world().get::<PlayerState>(event.player) {
-                        if *state == PlayerState::ChoosingName {
-                            let existing: Vec<String> = {
-                                let world = app.world_mut();
-                                world
-                                    .query::<&Name>()
-                                    .iter(&world)
-                                    .map(|n| n.0.clone())
-                                    .collect()
-                            };
-
-                            if existing.iter().any(|n| n == &input) {
-                                app.world_mut().write_message(OutputEvent {
-                                    player: event.player,
-                                    text: "Name already in use, please pick another".to_string(),
-                                });
-                            } else {
-                                app.world_mut().entity_mut(event.player).insert(Name(input.clone()));
-                                app.world_mut().entity_mut(event.player).insert(PlayerState::Active);
-
-                                app.world_mut().write_message(BroadcastEvent {
-                                    from: event.player,
-                                    text: format!("{} has joined the game.", input.clone()),
-                                });
-
-                                let maybe_room = {
-                                    app.world().get::<Location>(event.player).map(|l| l.0)
+                        match *state {
+                            PlayerState::ChoosingName => {
+                                let existing: Vec<String> = {
+                                    let world = app.world_mut();
+                                    world
+                                        .query::<&Name>()
+                                        .iter(&world)
+                                        .map(|n| n.0.clone())
+                                        .collect()
                                 };
-                                if let Some(room) = maybe_room {
-                                    app.world_mut().write_message(BroadcastRoomEvent {
-                                        from: event.player,
-                                        room,
-                                        text: format!("{} appears in a bright flash of light.", input.clone()),
-                                    });
-                                }
 
-                                app.world_mut().write_message(OutputEvent {
-                                    player: event.player,
-                                    text: format!("Welcome, {}!", input.clone()),
-                                });
+                                if existing.iter().any(|n| n == &input) {
+                                    app.world_mut().write_message(OutputEvent {
+                                        player: event.player,
+                                        text: "Name already in use, please pick another: ".to_string(),
+                                    });
+                                } else {
+                                    if let Some(mut reg) = app.world_mut().get_mut::<RegistrationData>(event.player) {
+                                        reg.chosen_name = Some(input.clone());
+                                    }
+                                    app.world_mut().entity_mut(event.player).insert(PlayerState::ChoosingPassword);
+                                    app.world_mut().write_message(OutputEvent { player: event.player, text: "Please enter a password: ".to_string() });
+                                }
+                                continue;
                             }
-                            continue;
+                            PlayerState::ChoosingPassword => {
+                                match crate::core::password::validate_password(&input) {
+                                    Ok(()) => {
+                                        let hash = crate::core::password::hash_password(&input);
+                                        if let Some(mut reg) = app.world_mut().get_mut::<RegistrationData>(event.player) {
+                                            reg.password_hash = Some(hash);
+                                        }
+                                        app.world_mut().entity_mut(event.player).insert(PlayerState::ChoosingRace);
+                                        app.world_mut().write_message(OutputEvent { player: event.player, text: RACE_PROMPT.to_string() });
+                                    }
+                                    Err(msg) => {
+                                        app.world_mut().write_message(OutputEvent { player: event.player, text: format!("{} ", msg) });
+                                    }
+                                }
+                                continue;
+                            }
+                            PlayerState::ChoosingRace => {
+                                let race_opt = match input.to_lowercase().as_str() {
+                                    "a" => Some(Race::Alien),
+                                    "h" => Some(Race::Human),
+                                    "p" => Some(Race::Predator),
+                                    "s" => Some(Race::SyntheticHuman),
+                                    _ => None,
+                                };
+
+                                if let Some(race) = race_opt {
+                                    let name = {
+                                        app.world().get::<RegistrationData>(event.player)
+                                            .and_then(|r| r.chosen_name.clone())
+                                            .unwrap_or_else(|| "Someone".to_string())
+                                    };
+                                    app.world_mut().entity_mut(event.player).insert(Name(name.clone()));
+                                    app.world_mut().entity_mut(event.player).insert(race.clone());
+                                    app.world_mut().entity_mut(event.player).insert(PlayerState::Active);
+
+                                    app.world_mut().write_message(BroadcastEvent {
+                                        from: event.player,
+                                        text: format!("{} has joined the game.", name.clone()),
+                                    });
+
+                                    let maybe_room = {
+                                        app.world().get::<Location>(event.player).map(|l| l.0)
+                                    };
+                                    if let Some(room) = maybe_room {
+                                        app.world_mut().write_message(BroadcastRoomEvent {
+                                            from: event.player,
+                                            room,
+                                            text: format!("{} appears in a bright flash of light.", name.clone()),
+                                        });
+                                    }
+
+                                    app.world_mut().write_message(OutputEvent {
+                                        player: event.player,
+                                        text: format!("Welcome, {}!", name.clone()),
+                                    });
+
+                                    if let Some(mut w) = app.world_mut().get_mut::<RegistrationData>(event.player) {
+                                        let _ = std::mem::take(&mut *w);
+                                    }
+                                } else {
+                                    app.world_mut().write_message(OutputEvent { player: event.player, text: RACE_PROMPT.to_string() });
+                                }
+                                continue;
+                            }
+                            _ => {}
                         }
                     }
 
@@ -182,13 +245,13 @@ pub async fn run_server(addr: &str) -> anyhow::Result<()> {
 
                 // Handle incoming player registration
                 while let Ok((tx, resp)) = register_rx.try_recv() {
-                    let world = app.world_mut();
-                    let entity = world
-                        .spawn((Player, OutputTx(tx.clone()), PlayerState::ChoosingName))
+                    let w = app.world_mut();
+                    let entity = w
+                        .spawn((Player, OutputTx(tx.clone()), PlayerState::ChoosingName, RegistrationData::default()))
                         .id();
 
-                    if let Some(start) = world.resource::<RoomRegistry>().get("default:start") {
-                        let _ = world.entity_mut(entity).insert(Location(start));
+                    if let Some(start) = w.resource::<RoomRegistry>().get("default:start") {
+                        let _ = w.entity_mut(entity).insert(Location(start));
                     }
 
                     let _ = resp.send(entity.to_bits());

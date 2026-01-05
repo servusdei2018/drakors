@@ -17,6 +17,7 @@
 pub mod commands;
 pub mod components;
 pub mod events;
+pub mod password;
 pub mod plugins;
 pub mod systems;
 pub mod world;
