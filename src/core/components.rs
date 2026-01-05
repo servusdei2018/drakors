@@ -39,7 +39,7 @@ impl fmt::Display for Name {
     }
 }
 
-#[derive(Component, PartialEq, Eq, Debug)]
+#[derive(Clone, Component, Debug, Eq, PartialEq)]
 pub enum PlayerState {
     ChoosingName,
     Active,

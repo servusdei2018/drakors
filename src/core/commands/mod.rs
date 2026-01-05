@@ -26,11 +26,18 @@ use bevy_ecs::prelude::*;
 pub type CommandHandler =
     fn(Entity, &mut World, /* full input */ &str, /* args */ &[&str]);
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum CommandScope {
+    Any,
+    Active,
+}
+
 struct CommandMetadata {
     name: &'static str,
     handler: Option<CommandHandler>,
     description: &'static str,
     aliases: &'static [&'static str],
+    scope: CommandScope,
 }
 
 const COMMAND_LIST: &[CommandMetadata] = &[
@@ -39,60 +46,70 @@ const COMMAND_LIST: &[CommandMetadata] = &[
         handler: Some(movement::cmd_east),
         description: "Move east",
         aliases: &["e"],
+        scope: CommandScope::Active,
     },
     CommandMetadata {
         name: "help",
         handler: Some(cmd_help),
         description: "Show this help message",
         aliases: &[],
+        scope: CommandScope::Any,
     },
     CommandMetadata {
         name: "look",
         handler: Some(movement::cmd_look),
         description: "Look around the current room",
         aliases: &["l"],
+        scope: CommandScope::Any,
     },
     CommandMetadata {
         name: "north",
         handler: Some(movement::cmd_north),
         description: "Move north",
         aliases: &["n"],
+        scope: CommandScope::Active,
     },
     CommandMetadata {
         name: "quit",
         handler: None,
         description: "Disconnect from the game",
         aliases: &[],
+        scope: CommandScope::Any,
     },
     CommandMetadata {
         name: "say",
         handler: Some(social::cmd_say),
         description: "Speak aloud to others in the room",
         aliases: &[],
+        scope: CommandScope::Any,
     },
     CommandMetadata {
         name: "shout",
         handler: Some(social::cmd_shout),
         description: "Shout to everyone in your zone",
         aliases: &[],
+        scope: CommandScope::Any,
     },
     CommandMetadata {
         name: "south",
         handler: Some(movement::cmd_south),
         description: "Move south",
         aliases: &["s"],
+        scope: CommandScope::Active,
     },
     CommandMetadata {
         name: "west",
         handler: Some(movement::cmd_west),
         description: "Move west",
         aliases: &["w"],
+        scope: CommandScope::Active,
     },
     CommandMetadata {
         name: "where",
         handler: Some(movement::cmd_where),
         description: "Show which zone you are in",
         aliases: &[],
+        scope: CommandScope::Any,
     },
 ];
 
@@ -100,18 +117,21 @@ const COMMAND_LIST: &[CommandMetadata] = &[
 pub struct CommandMap {
     pub handlers: HashMap<String, CommandHandler>,
     pub help_text: String,
+    pub scopes: HashMap<String, CommandScope>,
 }
 
 impl CommandMap {
     pub fn new() -> Self {
         let mut handlers = HashMap::new();
         let mut help_lines = Vec::new();
+        let mut scopes: HashMap<String, CommandScope> = HashMap::new();
 
         for cmd in COMMAND_LIST {
             for &alias in cmd.aliases {
                 if let Some(h) = cmd.handler {
                     handlers.insert(alias.to_string(), h);
                 }
+                scopes.insert(alias.to_string(), cmd.scope);
             }
 
             let aliases_str = if !cmd.aliases.is_empty() {
@@ -127,6 +147,7 @@ impl CommandMap {
             if let Some(h) = cmd.handler {
                 handlers.insert(cmd.name.to_string(), h);
             }
+            scopes.insert(cmd.name.to_string(), cmd.scope);
         }
 
         help_lines.sort();
@@ -135,6 +156,7 @@ impl CommandMap {
         Self {
             handlers,
             help_text,
+            scopes,
         }
     }
 }

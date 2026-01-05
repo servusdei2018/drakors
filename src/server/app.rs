@@ -16,6 +16,7 @@
 
 use crate::core::CommandMap;
 use crate::core::CorePlugin;
+use crate::core::commands::CommandScope;
 use crate::core::components::{Location, Name, OutputTx, Player, PlayerState};
 use crate::core::events::{
     BroadcastEvent, BroadcastRoomEvent, CommandEvent, DisconnectEvent, OutputEvent,
@@ -134,12 +135,31 @@ pub async fn run_server(addr: &str) -> anyhow::Result<()> {
                     };
                     let args: Vec<&str> = words;
 
-                    let handler_opt = {
+                    let (handler_opt, scope_opt) = {
                         let map = app.world().resource::<CommandMap>();
-                        map.handlers.get(&command_name).copied()
+                        (
+                            map.handlers.get(&command_name).copied(),
+                            map.scopes.get(&command_name).copied(),
+                        )
                     };
+
                     if let Some(handler) = handler_opt {
-                        handler(event.player, app.world_mut(), &input, &args);
+                        let player_state = app.world().get::<PlayerState>(event.player).cloned();
+                        let allowed = match scope_opt.unwrap_or(CommandScope::Active) {
+                            CommandScope::Any => true,
+                            CommandScope::Active => {
+                                matches!(player_state, Some(PlayerState::Active))
+                            }
+                        };
+
+                        if allowed {
+                            handler(event.player, app.world_mut(), &input, &args);
+                        } else {
+                            app.world_mut().write_message(OutputEvent {
+                                player: event.player,
+                                text: "You can't do that right now.".to_string(),
+                            });
+                        }
                     } else {
                         app.world_mut().write_message(OutputEvent {
                             player: event.player,
