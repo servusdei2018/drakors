@@ -21,7 +21,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use tracing::info;
+use tracing::{error, info};
 
 pub async fn start_networking(
     addr: String,
@@ -39,11 +39,9 @@ pub async fn start_networking(
         let disconnect_tx = disconnect_tx.clone();
         let register_tx = register_tx.clone();
         tokio::spawn(async move {
-            if handle_connection(stream, command_tx, disconnect_tx, register_tx)
-                .await
-                .is_err()
-            {
-                info!("Connection closed: {}", peer_addr);
+            match handle_connection(stream, command_tx, disconnect_tx, register_tx).await {
+                Ok(_) => info!("Connection closed: {}", peer_addr),
+                Err(e) => error!("Connection error ({}): {:?}", peer_addr, e),
             }
         });
     }
