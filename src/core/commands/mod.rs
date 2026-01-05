@@ -35,6 +35,12 @@ struct CommandMetadata {
 
 const COMMAND_LIST: &[CommandMetadata] = &[
     CommandMetadata {
+        name: "east",
+        handler: Some(movement::cmd_east),
+        description: "Move east",
+        aliases: &["e"],
+    },
+    CommandMetadata {
         name: "help",
         handler: Some(cmd_help),
         description: "Show this help message",
@@ -45,6 +51,12 @@ const COMMAND_LIST: &[CommandMetadata] = &[
         handler: Some(movement::cmd_look),
         description: "Look around the current room",
         aliases: &["l"],
+    },
+    CommandMetadata {
+        name: "north",
+        handler: Some(movement::cmd_north),
+        description: "Move north",
+        aliases: &["n"],
     },
     CommandMetadata {
         name: "quit",
@@ -63,6 +75,18 @@ const COMMAND_LIST: &[CommandMetadata] = &[
         handler: Some(social::cmd_shout),
         description: "Shout to everyone in your zone",
         aliases: &[],
+    },
+    CommandMetadata {
+        name: "south",
+        handler: Some(movement::cmd_south),
+        description: "Move south",
+        aliases: &["s"],
+    },
+    CommandMetadata {
+        name: "west",
+        handler: Some(movement::cmd_west),
+        description: "Move west",
+        aliases: &["w"],
     },
     CommandMetadata {
         name: "where",
